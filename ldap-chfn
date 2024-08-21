@@ -2,12 +2,27 @@
 use strict;
 use warnings;
 use Net::LDAP;
+use Config::Tiny;
 
-# LDAP server configuration
-my $ldap_server = 'ldap://ldap.mydomain.com';
-my $base_dn = 'dc=mydomain,dc=com';
-my $bind_dn = 'cn=admin,dc=mydomain,dc=com';
-my $bind_password = 'adminpassword';
+# Load the configuration file
+my $config_file = 'ldap_config.cfg';
+my $config = Config::Tiny->new;
+$config = Config::Tiny->read($config_file);
+
+# Check if configuration was loaded correctly
+die "Failed to read configuration file: $!" unless defined $config;
+
+# Extract LDAP configuration
+my $ldap_server = $config->{LDAP}->{ldap_server};
+my $base_dn = $config->{LDAP}->{base_dn};
+my $bind_dn = $config->{LDAP}->{bind_dn};
+my $bind_password = $config->{LDAP}->{bind_password};
+
+# Print to verify (optional)
+print "LDAP Server: $ldap_server\n";
+print "Base DN: $base_dn\n";
+print "Bind DN: $bind_dn\n";
+print "Bind Password: $bind_password\n";
 
 # Prompt for the username
 print "Enter the username: ";

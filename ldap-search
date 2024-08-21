@@ -2,14 +2,27 @@
 use strict;
 use warnings;
 use Net::LDAP;
+use Config::Tiny;
 
-# LDAP server details
-my $ldap_server = 'ldap://ldap.mydomain.com';
-my $base_dn = 'dc=mydomain,dc=com';
+# Load the configuration file
+my $config_file = './ldap_config.cfg';
+my $config = Config::Tiny->new;
+$config = Config::Tiny->read($config_file);
 
-# LDAP Manager DN and password
-my $manager_dn = 'cn=admin,dc=mydomain,dc=com';  # Replace with actual Manager DN
-my $password = 'foobar';                         # Replace with actual password
+# Check if configuration was loaded correctly
+die "Failed to read configuration file: $!" unless defined $config;
+
+# Extract LDAP configuration
+my $ldap_server = $config->{LDAP}->{ldap_server};
+my $base_dn = $config->{LDAP}->{base_dn};
+my $bind_dn = $config->{LDAP}->{bind_dn};
+my $bind_password = $config->{LDAP}->{bind_password};
+
+# Print to verify (optional)
+print "LDAP Server: $ldap_server\n";
+print "Base DN: $base_dn\n";
+print "Bind DN: $bind_dn\n";
+print "Bind Password: $bind_password\n";
 
 # Check for command line arguments
 if (@ARGV < 2) {
@@ -30,7 +43,7 @@ unless ($search_type eq 'uid' || $search_type eq 'uidNumber' || $search_type eq 
 my $ldap = Net::LDAP->new($ldap_server) or die "Could not connect to $ldap_server: $@";
 
 # Bind using Manager DN and Password
-my $mesg = $ldap->bind($manager_dn, password => $password);
+my $mesg = $ldap->bind($bind_dn, password => $bind_password);
 
 # Check if bind was successful
 if ($mesg->code) {

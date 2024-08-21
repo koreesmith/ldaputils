@@ -6,12 +6,21 @@ use Net::LDAP::Util qw(ldap_error_name ldap_error_text);
 use Crypt::Eksblowfish::Bcrypt qw(bcrypt en_base64);
 use MIME::Base64;
 use Term::ReadKey;
+use Config::Tiny;
 
-# Configuration
-my $ldap_server = "ldap://ldap.mydomain.com";
-my $bind_dn = "cn=admin,dc=mydomain,dc=com";
-my $bind_password = "adminpassword";
-my $base_dn = "dc=mydomain,dc=com";
+# Load the configuration file
+my $config_file = 'ldap_config.cfg';
+my $config = Config::Tiny->new;
+$config = Config::Tiny->read($config_file);
+
+# Check if configuration was loaded correctly
+die "Failed to read configuration file: $!" unless defined $config;
+
+# Extract LDAP configuration
+my $ldap_server = $config->{LDAP}->{ldap_server};
+my $base_dn = $config->{LDAP}->{base_dn};
+my $bind_dn = $config->{LDAP}->{bind_dn};
+my $bind_password = $config->{LDAP}->{bind_password};
 
 # Get username from command line or prompt for it
 my $username = shift @ARGV;
