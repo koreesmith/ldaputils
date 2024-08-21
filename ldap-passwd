@@ -1,0 +1,90 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Net::LDAP;
+use Net::LDAP::Util qw(ldap_error_name ldap_error_text);
+use Crypt::Eksblowfish::Bcrypt qw(bcrypt en_base64);
+use MIME::Base64;
+use Term::ReadKey;
+
+# Configuration
+my $ldap_server = "ldap://ldap.mydomain.com";
+my $bind_dn = "cn=admin,dc=mydomain,dc=com";
+my $bind_password = "adminpassword";
+my $base_dn = "dc=mydomain,dc=com";
+
+# Get username from command line or prompt for it
+my $username = shift @ARGV;
+unless ($username) {
+    print "Enter username: ";
+    chomp($username = <STDIN>);
+}
+
+# Function to prompt for password input securely (hidden input)
+sub prompt_password {
+    my ($prompt) = @_;
+    print $prompt;
+    Term::ReadKey::ReadMode('noecho');
+    chomp(my $password = <STDIN>);
+    Term::ReadKey::ReadMode('restore');
+    print "\n";
+    return $password;
+}
+
+# Prompt for the password twice
+my $new_password = prompt_password("Enter new password: ");
+my $confirm_password = prompt_password("Confirm new password: ");
+
+# Ensure the passwords match
+if ($new_password ne $confirm_password) {
+    die "Passwords do not match. Aborting.\n";
+}
+
+# Generate bcrypt hash of the password
+my $cost = 12; # bcrypt cost factor
+my $salt = join '', map { chr(rand(256)) } 1..16; # generate a random salt
+my $hashed_password = bcrypt($new_password, '$2a$' . sprintf("%02d", $cost) . '$' . en_base64($salt));
+
+# LDAP connection
+my $ldap = Net::LDAP->new($ldap_server) or die "Could not connect to $ldap_server: $@";
+
+# Bind to the LDAP server
+my $mesg = $ldap->bind($bind_dn, password => $bind_password);
+if ($mesg->code) {
+    die "Bind failed: ", ldap_error_name($mesg->code), " - ", ldap_error_text($mesg), "\n";
+}
+
+# Search for the user DN
+$mesg = $ldap->search(
+    base   => $base_dn,
+    filter => "(uid=$username)"
+);
+
+if ($mesg->code) {
+    die "Search failed: ", ldap_error_name($mesg->code), " - ", ldap_error_text($mesg), "\n";
+}
+
+my $entry = $mesg->entry(0);
+unless ($entry) {
+    die "User $username not found.\n";
+}
+
+my $user_dn = $entry->dn;
+
+# Update the password in LDAP
+$mesg = $ldap->modify(
+    $user_dn,
+    replace => {
+        userPassword => '{CRYPT}' . $hashed_password
+    }
+);
+
+if ($mesg->code) {
+    die "Password update failed: ", ldap_error_name($mesg->code), " - ", ldap_error_text($mesg), "\n";
+}
+
+print "Password for $username successfully updated.\n";
+
+# Unbind and disconnect
+$ldap->unbind;
+

@@ -1,0 +1,65 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Net::LDAP;
+
+# LDAP server details
+my $ldap_server = 'ldap://ldap.mydomain.com';
+my $base_dn = 'dc=mydomain,dc=com';
+
+# LDAP Manager DN and password
+my $manager_dn = 'cn=admin,dc=mydomain,dc=com';  # Replace with actual Manager DN
+my $password = 'foobar';                         # Replace with actual password
+
+# Check for command line arguments
+if (@ARGV < 2) {
+    print_usage();
+    exit 1;
+}
+
+# Get the search type and search value from command line arguments
+my ($search_type, $search_value) = @ARGV;
+
+# Validate the search type
+unless ($search_type eq 'uid' || $search_type eq 'uidNumber' || $search_type eq 'gecos') {
+    print_usage();
+    exit 1;
+}
+
+# Connect to the LDAP server
+my $ldap = Net::LDAP->new($ldap_server) or die "Could not connect to $ldap_server: $@";
+
+# Bind using Manager DN and Password
+my $mesg = $ldap->bind($manager_dn, password => $password);
+
+# Check if bind was successful
+if ($mesg->code) {
+    die "LDAP bind failed: ", $mesg->error;
+}
+
+# Perform the LDAP search
+my $result = $ldap->search(
+    base   => $base_dn,
+    filter => "($search_type=$search_value)",
+);
+
+# Check for errors
+if ($result->code) {
+    die "LDAP search failed: ", $result->error;
+}
+
+# Print the search results
+foreach my $entry ($result->entries) {
+    $entry->dump;
+}
+
+# Unbind from the LDAP server
+$ldap->unbind;
+
+# Function to print usage message
+sub print_usage {
+    print "Usage: $0 <search_type> <search_value>\n";
+    print "  <search_type>  : uid | uidNumber | gecos\n";
+    print "  <search_value> : Value to search for\n";
+}
+

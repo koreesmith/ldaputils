@@ -1,0 +1,73 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Net::LDAP;
+
+# LDAP server configuration
+my $ldap_server = 'ldap://ldap.mydomain.com';
+my $base_dn = 'dc=mydomain,dc=com';
+my $bind_dn = 'cn=admin,dc=mydomain,dc=com';
+my $bind_password = 'adminpassword';
+
+# Prompt for the username
+print "Enter the username: ";
+chomp(my $username = <STDIN>);
+
+# Exit if no username is provided
+if (!$username) {
+    die "Username is required.\n";
+}
+
+# LDAP connection
+my $ldap = Net::LDAP->new($ldap_server) or die "Error connecting to $ldap_server: $@";
+$ldap->bind($bind_dn, password => $bind_password) or die "Error binding to $ldap_server: " . $ldap->error;
+
+# Search for the user
+my $result = $ldap->search(
+    base   => $base_dn,
+    filter => "(uid=$username)"
+);
+
+if ($result->count == 0) {
+    die "User $username not found.\n";
+}
+
+my $entry = $result->entry(0);
+
+# Initialize a hash to store changes
+my %changes;
+
+# Prompt for each attribute to change
+print "Enter the full name (press Enter to skip): ";
+chomp(my $full_name = <STDIN>);
+$changes{'gecos'} = $full_name if $full_name;
+
+print "Enter the office (press Enter to skip): ";
+chomp(my $office = <STDIN>);
+$changes{'physicalDeliveryOfficeName'} = $office if $office;
+
+print "Enter the phone number (press Enter to skip): ";
+chomp(my $phone = <STDIN>);
+$changes{'telephoneNumber'} = $phone if $phone;
+
+# Apply changes only if there are any
+if (%changes) {
+    foreach my $attr (keys %changes) {
+        my $new_value = $changes{$attr};
+        print "Updating $attr to '$new_value'\n";
+        $entry->replace($attr => $new_value);
+    }
+
+    # Commit changes
+    $result = $entry->update($ldap);
+    if ($result->code) {
+        die "Failed to update LDAP entry: " . $result->error . "\n";
+    } else {
+        print "LDAP attributes for $username updated successfully.\n";
+    }
+} else {
+    print "No changes made.\n";
+}
+
+# Disconnect
+$ldap->unbind;
